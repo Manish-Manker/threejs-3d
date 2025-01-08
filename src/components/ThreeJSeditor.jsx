@@ -15,7 +15,7 @@ const ThreeJSeditor = () => {
   const [model, setModel] = useState(null);
   const [defaultModel, setDefaultModel] = useState(null);
   const [lightPosition, setLightPosition] = useState({ x: 0, y: 2, z: 5 });
-  const [shadowOpacity, setShadowOpacity] = useState(0.1);
+  const [shadowOpacity, setShadowOpacity] = useState(0.3);
 
   useEffect(() => {
     const currentMount = mountRef.current;
@@ -32,7 +32,7 @@ const ThreeJSeditor = () => {
       alpha: true,
       preserveDrawingBuffer: true,
       antialias: true,
-      powerPreference: "high-performance"
+      powerPreference: "high-performance",
     });
     renderer.setSize(760, 760);
     renderer.setPixelRatio(window.devicePixelRatio > 1 ? 2 : 1);
@@ -60,11 +60,14 @@ const ThreeJSeditor = () => {
     scene.add(Dlight.target);
     DlightRef.current = Dlight;
 
-    Dlight.shadow.mapSize.width = 2048; // Increased from 512
-    Dlight.shadow.mapSize.height = 2048; // Increased from 512
-    Dlight.shadow.camera.near = 0.1; // Adjusted for better precision
+    Dlight.shadow.mapSize.width = 2024; 
+    Dlight.shadow.mapSize.height = 2024; 
+    Dlight.shadow.camera.near = 0.5; 
     Dlight.shadow.camera.far = 500; // Set a fixed shadow depth
     Dlight.shadow.bias = -0.0001; // Reduce shadow artifacts
+
+    Dlight.shadow.radius = 8; // Adds blur to the shadows
+    Dlight.shadow.bias = -0.0001;
 
     const rectLight2 = new THREE.RectAreaLight(0xffffff, 0.5, 5, 5);
     rectLight2.position.set(0, 1, -6);
@@ -115,7 +118,8 @@ const ThreeJSeditor = () => {
             child.material.precision = "highp";
             child.material.roughness = 0.2;
             if (child.material.map) {
-              child.material.map.anisotropy = renderer.capabilities.getMaxAnisotropy();
+              child.material.map.anisotropy =
+                renderer.capabilities.getMaxAnisotropy();
               child.material.map.minFilter = THREE.LinearFilter;
               child.material.map.magFilter = THREE.LinearFilter;
               child.material.map.generateMipmaps = true;
@@ -124,7 +128,7 @@ const ThreeJSeditor = () => {
           }
         }
       });
-      
+
       scene.add(gltf.scene);
       const box = new THREE.Box3().setFromObject(gltf.scene);
       const center = box.getCenter(new THREE.Vector3());
@@ -201,7 +205,8 @@ const ThreeJSeditor = () => {
         const texture = new THREE.TextureLoader().load(e.target.result);
         texture.flipY = false;
         texture.minFilter = THREE.LinearFilter;
-        texture.anisotropy = rendererRef.current.capabilities.getMaxAnisotropy();
+        texture.anisotropy =
+          rendererRef.current.capabilities.getMaxAnisotropy();
         texture.colorSpace = THREE.SRGBColorSpace;
         model.traverse((child) => {
           if (child.isMesh) {
@@ -232,13 +237,15 @@ const ThreeJSeditor = () => {
     scene.background = originalBackground;
   };
 
-  
-
   const handleLightPositionChange = (axis, value) => {
     setLightPosition((prev) => {
       const newPosition = { ...prev, [axis]: value };
       if (DlightRef.current) {
-        DlightRef.current.position.set(newPosition.x, newPosition.y, newPosition.z);
+        DlightRef.current.position.set(
+          newPosition.x,
+          newPosition.y,
+          newPosition.z
+        );
         DlightRef.current.target.position.set(0, 0, 0);
       }
       return newPosition;
