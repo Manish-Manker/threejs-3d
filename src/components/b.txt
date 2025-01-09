@@ -48,10 +48,10 @@ const ThreeJSeditor = () => {
 
     RectAreaLightUniformsLib.init();
 
-    const rectLight1 = new THREE.RectAreaLight(0xffffff, 0.5, 5, 5);
+    const rectLight1 = new THREE.RectAreaLight(0xffffff, 0.5, 5, 5); 
     rectLight1.position.set(0, 1, 6);
     rectLight1.lookAt(0, 0, 0);
-    scene.add(rectLight1);
+    scene.add(rectLight1); 
 
     const Dlight = new THREE.DirectionalLight(0xffffff, 1);
     Dlight.position.set(lightPosition.x, lightPosition.y, lightPosition.z);
@@ -279,8 +279,8 @@ const ThreeJSeditor = () => {
         <label>
           Select Mesh:
           <select onChange={handleMeshSelection}>
-            {model && model.children.map((child) => (
-              
+            {console.log(model)}
+            {model && model.children.filter(child => child.isMesh).map((child) => (
               <option key={child.name} value={child.name}>
                 {child.name}
               </option>
