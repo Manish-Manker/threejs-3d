@@ -14,8 +14,9 @@ const ThreeJSeditor = () => {
   const [modelFile, setModelFile] = useState(null);
   const [model, setModel] = useState(null);
   const [defaultModel, setDefaultModel] = useState(null);
-  const [lightPosition, setLightPosition] = useState({ x: 0, y: 2, z: 5 });
+  const [lightPosition, setLightPosition] = useState({ x: -4, y: 2, z: 5 });
   const [shadowOpacity, setShadowOpacity] = useState(0.3);
+  const [shadowBlur, setShadowBlur] = useState(1);
   const [selectedMesh, setSelectedMesh] = useState(null);
 
   useEffect(() => {
@@ -39,7 +40,7 @@ const ThreeJSeditor = () => {
     renderer.setPixelRatio(window.devicePixelRatio > 1 ? 2 : 1);
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.shadowMap.enabled = true;
-    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.shadowMap.type = THREE.PCFShadowMap;
     currentMount.appendChild(renderer.domElement);
     rendererRef.current = renderer;
 
@@ -59,16 +60,16 @@ const ThreeJSeditor = () => {
     Dlight.target.position.set(0, 0, 0);
     scene.add(Dlight);
     scene.add(Dlight.target);
-    DlightRef.current = Dlight;
-
-    Dlight.shadow.mapSize.width = 2024; 
-    Dlight.shadow.mapSize.height = 2024; 
+    
+    Dlight.shadow.mapSize.width = 1224; 
+    Dlight.shadow.mapSize.height = 824; 
     Dlight.shadow.camera.near = 0.5; 
     Dlight.shadow.camera.far = 500; // Set a fixed shadow depth
     Dlight.shadow.bias = -0.0001; // Reduce shadow artifacts
+    Dlight.shadow.radius = shadowBlur;
 
-    Dlight.shadow.radius = 20;
-
+    DlightRef.current = Dlight;
+    
     const rectLight2 = new THREE.RectAreaLight(0xffffff, 0.5, 5, 5);
     rectLight2.position.set(0, 1, -6);
     rectLight2.lookAt(0, 0, 0);
@@ -274,82 +275,112 @@ const ThreeJSeditor = () => {
     }
   };
 
+  const handleShadowBlurChange = (value) => {
+    const newBlur = parseInt(value);
+    setShadowBlur(newBlur);
+    if (DlightRef.current) {
+      DlightRef.current.shadow.radius = newBlur;
+      // DlightRef.current.material.needsUpdate = true;
+    }
+  };
+
   return (
-    <div>
-      <input type="file" accept=".glb" onChange={handleFileChange} />
-      <div>
-        <label>
-          Select Mesh:
-          <select onChange={handleMeshSelection}>
-            <option>null</option>
-            {model && model.children.filter(child => child.isMesh).map((child) => (
-              <option key={child.name} value={child.name}>
-                {child.name}
-              </option>
-            ))}
-          </select>
-        </label>
-      </div>
-      <div>
-        <label>
-          Texture:
-        </label>
-          <input type="file" accept="image/*" onChange={handleTextureChange} />
-      </div>
-      <div>
-        <label>
-          Light X:
-          <input
-            type="range"
-            min="-20"
-            max="20"
-            value={lightPosition.x}
-            onChange={(e) => handleLightPositionChange("x", e.target.value)}
-          />
-        </label>
-        <label>
-          Light Y:
-          <input
-            type="range"
-            min="-20"
-            max="20"
-            value={lightPosition.y}
-            onChange={(e) => handleLightPositionChange("y", e.target.value)}
-          />
-        </label>
-        <label>
-          Light Z:
-          <input
-            type="range"
-            min="-20"
-            max="20"
-            value={lightPosition.z}
-            onChange={(e) => handleLightPositionChange("z", e.target.value)}
-          />
-        </label>
-        <label>
-          Shadow Opacity:
-          <input
-            type="range"
-            min="0"
-            max="1"
-            step="0.01"
-            value={shadowOpacity}
-            onChange={(e) => handleShadowOpacityChange(e.target.value)}
-          />
-        </label>
-      </div>
-      <button onClick={() => handleDownloadImage("png")}>Download PNG</button>
-      <div
-        ref={mountRef}
-        style={{
-          width: "100%",
-          height: "100%",
-          padding: "20px",
-          boxSizing: "border-box",
-        }}
-      />
+    <div style={{ padding: "20px", fontFamily: "Arial, sans-serif" }}>
+    <input type="file" accept=".glb" onChange={handleFileChange} style={{ marginBottom: "10px" }} />
+    <div style={{ marginBottom: "10px" }}>
+      <label>
+        Select Mesh:
+        <select onChange={handleMeshSelection} style={{ marginLeft: "10px" }}>
+          <option>null</option>
+          {model && model.children.filter(child => child.isMesh).map((child) => (
+            <option key={child.name} value={child.name}>
+              {child.name}
+            </option>
+          ))}
+        </select>
+      </label>
     </div>
+    <div style={{ marginBottom: "10px" }}>
+      <label>
+        Texture:
+      </label>
+      <input type="file" accept="image/*" onChange={handleTextureChange} style={{ marginLeft: "10px" }} />
+    </div>
+    <div style={{ marginBottom: "10px" }}>
+      <label style={{ display: "block", marginBottom: "5px" }}>
+        Light X: {lightPosition.x}
+        <input
+          type="range"
+          min="-20"
+          max="20"
+          step="0.5"
+          value={lightPosition.x}
+          onChange={(e) => handleLightPositionChange("x", e.target.value)}
+          style={{ marginLeft: "10px", verticalAlign: "middle" }}
+        />
+      </label>
+      <label style={{ display: "block", marginBottom: "5px" }}>
+        Light Y: {lightPosition.y}
+        <input
+          type="range"
+          min="-20"
+          max="20"
+          step="0.5"
+          value={lightPosition.y}
+          onChange={(e) => handleLightPositionChange("y", e.target.value)}
+          style={{ marginLeft: "10px", verticalAlign: "middle" }}
+        />
+      </label>
+      <label style={{ display: "block", marginBottom: "5px" }}>
+        Light Z: {lightPosition.z}
+        <input
+          type="range"
+          min="-20"
+          max="20"
+          step="0.5"
+          value={lightPosition.z}
+          onChange={(e) => handleLightPositionChange("z", e.target.value)}
+          style={{ marginLeft: "10px", verticalAlign: "middle" }}
+        />
+      </label>
+      <label style={{ display: "block", marginBottom: "5px" }}>
+        Shadow Opacity: {shadowOpacity}
+        <input
+          type="range"
+          min="0"
+          max="1"
+          step="0.01"
+          value={shadowOpacity}
+          onChange={(e) => handleShadowOpacityChange(e.target.value)}
+          style={{ marginLeft: "10px", verticalAlign: "middle" }}
+        />
+      </label>
+      <label style={{ display: "block", marginBottom: "5px" }}>
+        Shadow Blur: {shadowBlur}
+        <input
+          type="range"
+          min="0"
+          max="20"
+          step="1"
+          value={shadowBlur}
+          onChange={(e) => handleShadowBlurChange(e.target.value)}
+          style={{ marginLeft: "10px", verticalAlign: "middle" }}
+        />
+      </label>
+    </div>
+    <button onClick={() => handleDownloadImage("png")} style={{ marginBottom: "10px" }}>Download PNG</button>
+    <div
+      ref={mountRef}
+      style={{
+        width: "100%",
+        height: "100%",
+        padding: "20px",
+        boxSizing: "border-box",
+        border: "1px solid #ccc",
+        borderRadius: "4px",
+      }}
+    />
+  </div>
   );
 };
 
