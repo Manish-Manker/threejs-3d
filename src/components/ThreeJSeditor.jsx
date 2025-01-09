@@ -67,8 +67,7 @@ const ThreeJSeditor = () => {
     Dlight.shadow.camera.far = 500; // Set a fixed shadow depth
     Dlight.shadow.bias = -0.0001; // Reduce shadow artifacts
 
-    Dlight.shadow.radius = 8; // Adds blur to the shadows
-    Dlight.shadow.bias = -0.0001;
+    Dlight.shadow.radius = 20;
 
     const rectLight2 = new THREE.RectAreaLight(0xffffff, 0.5, 5, 5);
     rectLight2.position.set(0, 1, -6);
@@ -146,7 +145,7 @@ const ThreeJSeditor = () => {
     };
 
     if (!modelFile) {
-      loader.load("/Box.glb", (gltf) => {
+      loader.load("/Cylinder.glb", (gltf) => {
         const modelScene = loadModel(gltf);
         setDefaultModel(modelScene);
         setModel(modelScene);
@@ -201,10 +200,12 @@ const ThreeJSeditor = () => {
 
   const handleFileChange = (event) => {
     setModelFile(event.target.files[0]);
+    setSelectedMesh(null);
   };
 
   const handleMeshSelection = (event) => {
     const selectedMeshName = event.target.value;
+    
     if (model) {
       const mesh = model.getObjectByName(selectedMeshName);
       setSelectedMesh(mesh);
@@ -213,7 +214,8 @@ const ThreeJSeditor = () => {
 
   const handleTextureChange = (event) => {
     if (selectedMesh) {
-      const file = event.target.files[0];
+      
+      const file = event?.target.files[0];
       if (!file) return;
       const reader = new FileReader();
       reader.onload = (e) => {
@@ -279,8 +281,8 @@ const ThreeJSeditor = () => {
         <label>
           Select Mesh:
           <select onChange={handleMeshSelection}>
-            {model && model.children.map((child) => (
-              
+            <option>null</option>
+            {model && model.children.filter(child => child.isMesh).map((child) => (
               <option key={child.name} value={child.name}>
                 {child.name}
               </option>
@@ -291,8 +293,8 @@ const ThreeJSeditor = () => {
       <div>
         <label>
           Texture:
-          <input type="file" accept="image/*" onChange={handleTextureChange} />
         </label>
+          <input type="file" accept="image/*" onChange={handleTextureChange} />
       </div>
       <div>
         <label>
