@@ -1,11 +1,12 @@
 import './App.css';
 import ThreeJSeditor from './components/ThreeJSeditor';
-
+import Bn from './components/Bn';
 
 function App() {
   return (
     <>
-      <ThreeJSeditor />
+    <Bn/>
+      {/* <ThreeJSeditor /> */}
     </>
   );
 }

@@ -1,10 +1,32 @@
-import React, { useEffect, useRef, useState } from "react";
+// this is optimize code but need some changes
+
+import React, { useEffect, useRef, useState, useCallback, memo, useMemo } from "react";
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls";
 import { RectAreaLightUniformsLib } from "three/examples/jsm/lights/RectAreaLightUniformsLib";
 
-const ThreeJSeditor = () => {
+// Custom hook for cleanup
+const useCleanup = (refs) => {
+  useEffect(() => {
+    return () => {
+      Object.values(refs).forEach(ref => {
+        if (ref?.current?.dispose) {
+          ref.current.dispose();
+        }
+        if (ref?.current?.material?.dispose) {
+          ref.current.material.dispose();
+        }
+        if (ref?.current?.geometry?.dispose) {
+          ref.current.geometry.dispose();
+        }
+      });
+    };
+  }, []);
+};
+
+// Performance optimized component
+const ThreeJSeditor = memo(() => {
   const mountRef = useRef(null);
   const sceneRef = useRef(null);
   const cameraRef = useRef(null);
@@ -14,29 +36,149 @@ const ThreeJSeditor = () => {
   const [modelFile, setModelFile] = useState(null);
   const [model, setModel] = useState(null);
   const [defaultModel, setDefaultModel] = useState(null);
-  const [lightPosition, setLightPosition] = useState({ x: -4, y: 2, z: 5 });
+  const [lightPosition, setLightPosition] = useState({ x: -4, y: 4, z: 5 });
   const [shadowOpacity, setShadowOpacity] = useState(0.3);
   const [shadowBlur, setShadowBlur] = useState(1);
   const [selectedMesh, setSelectedMesh] = useState(null);
+  const [modelBounds, setModelBounds] = useState(null);
+  const [modelColor, setModelColor] = useState("#ffffff");
+  const [colorChanged, setColorChanged] = useState(false);
+  const [colorableMeshes, setColorableMeshes] = useState([]);
+  const [selectedColorMesh, setSelectedColorMesh] = useState(null);
 
+  const animationFrameId = useRef(null);
+  const controlsRef = useRef(null);
+
+  // Cleanup resources
+  useCleanup({
+    scene: sceneRef,
+    renderer: rendererRef,
+    plane: planeRef,
+    model: model
+  });
+
+  // Optimize renderer settings
+  const rendererSettings = useMemo(() => ({
+    alpha: true,
+    preserveDrawingBuffer: true,
+    antialias: true,
+    powerPreference: "high-performance",
+    logarithmicDepthBuffer: true,
+    precision: "highp"
+  }), []);
+
+  // Optimized scene initialization
+  const initScene = useCallback(() => {
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0xdddddd);
+    return scene;
+  }, []);
+
+  // Optimized model loading
+  const loadModel = useCallback((gltf) => {
+    const scene = sceneRef.current;
+    gltf.scene.traverse((child) => {
+      if (child.isMesh) {
+        child.castShadow = true;
+        child.receiveShadow = true;
+        if (child.material) {
+          child.material.precision = "highp";
+          child.material.roughness = 0.25;
+          if (child.material.map) {
+            const texture = child.material.map;
+            texture.anisotropy = rendererRef.current.capabilities.getMaxAnisotropy();
+            texture.minFilter = THREE.LinearMipmapLinearFilter;
+            texture.generateMipmaps = true;
+            texture.needsUpdate = true;
+          }
+        }
+      }
+    });
+
+    scene.add(gltf.scene);
+
+    // Center and scale model
+    const box = new THREE.Box3().setFromObject(gltf.scene);
+    const center = box.getCenter(new THREE.Vector3());
+    // const size = box.getSize(new THREE.Vector3());
+    // const maxDim = Math.max(size.x, size.y, size.z);
+    // const scale = 1.5 / maxDim; // Adjust scale factor
+
+    // gltf.scene.scale.set(scale, scale, scale);
+    gltf.scene.position.sub(center);
+    gltf.scene.updateMatrixWorld(true);
+
+    setModelBounds(box);
+    updatePlanePosition(box);
+
+    scene.needsRender = true;
+
+    return gltf.scene;
+  }, []);
+
+  // Optimized animation loop
+  const animate = useCallback(() => {
+    if (!sceneRef.current || !cameraRef.current || !rendererRef.current) return;
+
+    controlsRef.current?.update();
+    rendererRef.current.render(sceneRef.current, cameraRef.current);
+    animationFrameId.current = requestAnimationFrame(animate);
+  }, []);
+
+  // Optimize texture loading
+  const loadTexture = useCallback((file) => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const texture = new THREE.TextureLoader().load(e.target.result);
+        texture.flipY = false;
+        texture.minFilter = THREE.LinearMipmapLinearFilter;
+        texture.magFilter = THREE.LinearFilter;
+        texture.anisotropy = rendererRef.current.capabilities.getMaxAnisotropy();
+        texture.colorSpace = THREE.SRGBColorSpace;
+        texture.needsUpdate = true;
+        resolve(texture);
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  }, []);
+
+  // Optimize handlers
+  const handleTextureChange = useCallback(async (event) => {
+    if (!selectedMesh) return;
+
+    const file = event?.target.files[0];
+    if (!file) return;
+
+    try {
+      if (selectedMesh.material.map) {
+        selectedMesh.material.map.dispose();
+      }
+
+      const texture = await loadTexture(file);
+      selectedMesh.material.map = texture;
+      selectedMesh.material.needsUpdate = true;
+      sceneRef.current.needsRender = true;
+    } catch (error) {
+      console.error('Error loading texture:', error);
+    }
+  }, [selectedMesh, loadTexture]);
+
+  // Main effect with optimizations
   useEffect(() => {
     const currentMount = mountRef.current;
 
-    const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0xdddddd);
+    const scene = initScene();
     sceneRef.current = scene;
 
-    const camera = new THREE.PerspectiveCamera(55, 1, 1, 1000);
-    camera.position.set(0, 0, 2);
+    const camera = new THREE.PerspectiveCamera(65, 1 , 0.1, 1000);
+    camera.position.set(0, 0, 2); // Move camera back and up
+    // camera.lookAt(0, 0, 0);
     cameraRef.current = camera;
 
-    const renderer = new THREE.WebGLRenderer({
-      alpha: true,
-      preserveDrawingBuffer: true,
-      antialias: true,
-      powerPreference: "high-performance",
-    });
-    renderer.setSize(760, 760);
+    const renderer = new THREE.WebGLRenderer(rendererSettings);
+    renderer.setSize(1024, 1024);
     renderer.setPixelRatio(window.devicePixelRatio > 1 ? 2 : 1);
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.shadowMap.enabled = true;
@@ -61,10 +203,10 @@ const ThreeJSeditor = () => {
     scene.add(Dlight);
     scene.add(Dlight.target);
 
-    Dlight.shadow.mapSize.width = 1224;
-    Dlight.shadow.mapSize.height = 824;
-    Dlight.shadow.camera.near = 0.5;
-    Dlight.shadow.camera.far = 500; // Set a fixed shadow depth
+    Dlight.shadow.mapSize.width = 1024;
+    Dlight.shadow.mapSize.height = 1024;
+    Dlight.shadow.camera.near = 0.01;
+    Dlight.shadow.camera.far = 800; // Set a fixed shadow depth
     Dlight.shadow.bias = -0.0001; // Reduce shadow artifacts
     Dlight.shadow.radius = shadowBlur;
 
@@ -95,58 +237,31 @@ const ThreeJSeditor = () => {
     rectLightB.lookAt(0, 0, 0);
     scene.add(rectLightB);
 
-    const planeGeometry = new THREE.PlaneGeometry(500, 500);
+    const planeGeometry = new THREE.PlaneGeometry(1024, 1024);
     const planeMaterial = new THREE.ShadowMaterial({ opacity: shadowOpacity });
     const plane = new THREE.Mesh(planeGeometry, planeMaterial);
     plane.rotation.x = -Math.PI / 2;
-    plane.position.y = -0.75; // Adjust the plane position to remove the gap
     plane.receiveShadow = true;
     planeRef.current = plane;
+
+    // Initial position - will be updated when model loads
+    if (modelBounds) {
+      updatePlanePosition(modelBounds);
+    }
     scene.add(plane);
 
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
     controls.dampingFactor = 0.05;
+    controls.minDistance = 2;
+    controls.maxDistance = 10;
+    controls.target.set(0, 0, 0);
+    controls.update();
+    controlsRef.current = controls;
 
     const loader = new GLTFLoader();
-    const loadModel = (gltf) => {
-      gltf.scene.traverse((child) => {
-        if (child.isMesh) {
-          child.castShadow = true;
-          child.receiveShadow = true;
-          // Improve material quality
-          if (child.material) {
-            child.material.precision = "highp";
-            child.material.roughness = 0.2;
-            if (child.material.map) {
-              child.material.map.anisotropy =
-                renderer.capabilities.getMaxAnisotropy();
-              child.material.map.minFilter = THREE.LinearFilter;
-              child.material.map.magFilter = THREE.LinearFilter;
-              child.material.map.generateMipmaps = true;
-              child.material.map.colorSpace = THREE.SRGBColorSpace;
-            }
-          }
-        }
-      });
-
-      scene.add(gltf.scene);
-      const box = new THREE.Box3().setFromObject(gltf.scene);
-      const center = box.getCenter(new THREE.Vector3());
-      gltf.scene.position.sub(center);
-      const size = box.getSize(new THREE.Vector3());
-      const maxDim = Math.max(size.x, size.y, size.z);
-      const scale = 1.5 / maxDim;
-      gltf.scene.scale.set(scale, scale, scale);
-      const newBox = new THREE.Box3().setFromObject(gltf.scene);
-      const newCenter = newBox.getCenter(new THREE.Vector3());
-      gltf.scene.position.sub(newCenter);
-      // gltf.scene.position.y = -size.y / 2; // Center the model properly
-      return gltf.scene;
-    };
-
     if (!modelFile) {
-      loader.load("/Cylinder.glb", (gltf) => {
+      loader.load("/BCAA Supplement Container Black.glb", (gltf) => {
         const modelScene = loadModel(gltf);
         setDefaultModel(modelScene);
         setModel(modelScene);
@@ -169,14 +284,18 @@ const ThreeJSeditor = () => {
       reader.readAsArrayBuffer(modelFile);
     }
 
-    const animate = () => {
-      controls.update();
-      requestAnimationFrame(animate);
-      renderer.render(scene, camera);
-    };
     animate();
 
     const handleResize = () => {
+      // const width = currentMount.clientWidth;
+      // const height = currentMount.clientHeight;
+
+      // camera.aspect = width / height;
+      // camera.updateProjectionMatrix();
+
+      // renderer.setSize(width, height);
+      // renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+
       camera.aspect = currentMount.clientWidth / currentMount.clientHeight;
       camera.updateProjectionMatrix();
       renderer.setSize(currentMount.clientWidth, currentMount.clientHeight);
@@ -191,7 +310,29 @@ const ThreeJSeditor = () => {
       setDefaultModel(null);
       renderer.dispose();
     };
-  }, [modelFile]);
+  }, [modelFile, initScene, animate, rendererSettings]);
+
+  useEffect(() => {
+    if (DlightRef.current) {
+      DlightRef.current.position.set(
+        lightPosition.x,
+        lightPosition.y,
+        lightPosition.z
+      );
+    }
+  }, [lightPosition]);
+
+  useEffect(() => {
+    if (planeRef.current) {
+      planeRef.current.material.opacity = shadowOpacity;
+    }
+  }, [shadowOpacity]);
+
+  useEffect(() => {
+    if (planeRef.current) {
+      planeRef.current.material.needsUpdate = true;
+    }
+  }, [shadowBlur]);
 
   useEffect(() => {
     if (model) {
@@ -199,9 +340,37 @@ const ThreeJSeditor = () => {
     }
   }, [model]);
 
+  useEffect(() => {
+    if (modelBounds) {
+      updatePlanePosition(modelBounds);
+    }
+  }, [modelBounds]);
+
+  useEffect(() => {
+    if (model) {
+      const meshesWithoutTexture = [];
+      const texturemesh = [];
+      model.traverse((child) => {
+        if (child.isMesh) {
+          if (Array.isArray(child.material)) {
+            if (child.material.some(mat => !mat.map)) {
+              meshesWithoutTexture.push(child);
+            }
+          } else if (child.material && !child.material.map) {
+            meshesWithoutTexture.push(child);
+          } else {
+            texturemesh.push(child);
+          }
+        }
+      });
+      setColorableMeshes(meshesWithoutTexture);
+    }
+  }, [model]);
+
   const handleFileChange = (event) => {
     setModelFile(event.target.files[0]);
     setSelectedMesh(null);
+    setColorChanged(false); // Reset color changed flag for new model
   };
 
   const handleMeshSelection = (event) => {
@@ -210,25 +379,6 @@ const ThreeJSeditor = () => {
     if (model) {
       const mesh = model.getObjectByName(selectedMeshName);
       setSelectedMesh(mesh);
-    }
-  };
-
-  const handleTextureChange = (event) => {
-    if (selectedMesh) {
-      const file = event?.target.files[0];
-      if (!file) return;
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const texture = new THREE.TextureLoader().load(e.target.result);
-        texture.flipY = false;
-        texture.minFilter = THREE.LinearFilter;
-        texture.anisotropy =
-          rendererRef.current.capabilities.getMaxAnisotropy();
-        texture.colorSpace = THREE.SRGBColorSpace;
-        selectedMesh.material.map = texture;
-        selectedMesh.material.needsUpdate = true;
-      };
-      reader.readAsDataURL(file);
     }
   };
 
@@ -279,36 +429,70 @@ const ThreeJSeditor = () => {
     setShadowBlur(newBlur);
     if (DlightRef.current) {
       DlightRef.current.shadow.radius = newBlur;
-      // DlightRef.current.material.needsUpdate = true;
     }
+  };
+
+  const handleColorChange = (event) => {
+    const newColor = event.target.value;
+    setModelColor(newColor);
+
+    if (selectedColorMesh && selectedColorMesh.isMesh) {
+      if (Array.isArray(selectedColorMesh.material)) {
+        selectedColorMesh.material.forEach(mat => {
+          if (!mat.map) {
+            mat.color.setStyle(newColor);
+            mat.needsUpdate = true;
+          }
+        });
+      } else if (selectedColorMesh.material && !selectedColorMesh.material.map) {
+        selectedColorMesh.material.color.setStyle(newColor);
+        selectedColorMesh.material.needsUpdate = true;
+      }
+    }
+  };
+
+  const handleColorMeshSelect = (event) => {
+    const meshName = event.target.value;
+    const selected = colorableMeshes.find(mesh => mesh.name === meshName);
+    setSelectedColorMesh(selected);
+  };
+
+  const updatePlanePosition = (bounds) => {
+    if (!planeRef.current || !bounds) return;
+    const modelHeight = bounds.max.y - bounds.min.y;
+    const offset = modelHeight * 0.5;
+    planeRef.current.position.y = bounds.min.y - offset;
   };
 
   return (
     <>
-      <div style={{display:"flex", alignContent:"space-between"}} >
+      <div style={{ display: "flex", alignContent: "space-between" }}>
         <div style={{ padding: "20px", fontFamily: "Arial, sans-serif" }}>
-          <input
-            type="file"
-            accept=".glb"
-            onChange={handleFileChange}
-            style={{ marginBottom: "10px" }}
-          />
+          <label>
+            Select Model:
+            <input
+              type="file"
+              accept=".glb"
+              onChange={handleFileChange}
+              style={{ marginBottom: "10px" }}
+            />
+          </label>
           <div style={{ marginBottom: "10px" }}>
             <label>
-              Select Mesh:
+              Select Mesh for Texture:
               <select
                 onChange={handleMeshSelection}
                 style={{ marginLeft: "10px" }}
+                value={selectedMesh?.name || ""}
               >
-                <option>null</option>
-                {model &&
-                  model.children
-                    .filter((child) => child.isMesh)
-                    .map((child) => (
-                      <option key={child.name} value={child.name}>
-                        {child.name}
-                      </option>
-                    ))}
+                <option value="">Select mesh</option>
+                {model && model.children
+                  .filter((child) => child.isMesh)
+                  .map((child) => (
+                    <option key={child.name} value={child.name}>
+                      {child.name}
+                    </option>
+                  ))}
               </select>
             </label>
           </div>
@@ -323,7 +507,7 @@ const ThreeJSeditor = () => {
           </div>
           <div style={{ marginBottom: "10px" }}>
             <label style={{ display: "block", marginBottom: "5px" }}>
-              Light X: {lightPosition.x}
+              Light X:
               <input
                 type="range"
                 min="-20"
@@ -333,9 +517,10 @@ const ThreeJSeditor = () => {
                 onChange={(e) => handleLightPositionChange("x", e.target.value)}
                 style={{ marginLeft: "10px", verticalAlign: "middle" }}
               />
+              {" " + lightPosition.x}
             </label>
             <label style={{ display: "block", marginBottom: "5px" }}>
-              Light Y: {lightPosition.y}
+              Light Y:
               <input
                 type="range"
                 min="-20"
@@ -345,9 +530,10 @@ const ThreeJSeditor = () => {
                 onChange={(e) => handleLightPositionChange("y", e.target.value)}
                 style={{ marginLeft: "10px", verticalAlign: "middle" }}
               />
+              {" " + lightPosition.y}
             </label>
             <label style={{ display: "block", marginBottom: "5px" }}>
-              Light Z: {lightPosition.z}
+              Light Z:
               <input
                 type="range"
                 min="-20"
@@ -357,9 +543,10 @@ const ThreeJSeditor = () => {
                 onChange={(e) => handleLightPositionChange("z", e.target.value)}
                 style={{ marginLeft: "10px", verticalAlign: "middle" }}
               />
+              {" " + lightPosition.z}
             </label>
             <label style={{ display: "block", marginBottom: "5px" }}>
-              Shadow Opacity: {shadowOpacity}
+              Shadow Opacity:
               <input
                 type="range"
                 min="0"
@@ -369,17 +556,43 @@ const ThreeJSeditor = () => {
                 onChange={(e) => handleShadowOpacityChange(e.target.value)}
                 style={{ marginLeft: "10px", verticalAlign: "middle" }}
               />
+              {" " + shadowOpacity}
             </label>
             <label style={{ display: "block", marginBottom: "5px" }}>
-              Shadow Blur: {shadowBlur}
+              Shadow Blur:
               <input
                 type="range"
                 min="0"
-                max="20"
+                max="10"
                 step="1"
                 value={shadowBlur}
                 onChange={(e) => handleShadowBlurChange(e.target.value)}
                 style={{ marginLeft: "10px", verticalAlign: "middle" }}
+              />
+              {" " + shadowBlur}
+            </label>
+          </div>
+          <div style={{ marginBottom: "10px" }}>
+            <label>
+              Select Mesh to Color:
+              <select
+                onChange={handleColorMeshSelect}
+                style={{ marginLeft: "10px", marginRight: "10px" }}
+                value={selectedColorMesh?.name || ""}
+              >
+                <option value="">Select mesh</option>
+                {colorableMeshes.map((mesh) => (
+                  <option key={mesh.name} value={mesh.name}>
+                    {mesh.name}
+                  </option>
+                ))}
+              </select>
+              <input
+                type="color"
+                value={modelColor}
+                onChange={handleColorChange}
+                disabled={!selectedColorMesh}
+                style={{ verticalAlign: "middle" }}
               />
             </label>
           </div>
@@ -404,6 +617,31 @@ const ThreeJSeditor = () => {
       </div>
     </>
   );
-};
+});
 
-export default ThreeJSeditor;
+ThreeJSeditor.displayName = 'ThreeJSeditor';
+
+// Error boundary wrapper
+class ThreeJSErrorBoundary extends React.Component {
+  state = { hasError: false, error: null };
+
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return <div>Error loading 3D viewer: {this.state.error.message}</div>;
+    }
+    return this.props.children;
+  }
+}
+
+// Export wrapped component
+export default function SafeThreeJSeditor() {
+  return (
+    <ThreeJSErrorBoundary>
+      <ThreeJSeditor />
+    </ThreeJSErrorBoundary>
+  );
+}
