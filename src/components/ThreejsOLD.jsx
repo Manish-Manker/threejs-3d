@@ -5,6 +5,7 @@ import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls";
 import { RectAreaLightUniformsLib } from "three/examples/jsm/lights/RectAreaLightUniformsLib";
+import { RGBELoader } from "three/examples/jsm/loaders/RGBELoader.js";
 
 const ThreejsOLD = () => {
   const mountRef = useRef(null);
@@ -26,6 +27,9 @@ const ThreejsOLD = () => {
   const [colorableMeshes, setColorableMeshes] = useState([]);
   const [modelColor, setModelColor] = useState("#ffffff");
 
+  const [OrbitControls0, setOrbitControls0] = useState(true);
+  const OrbitControlRef = useRef(null);
+
   useEffect(() => {
     const currentMount = mountRef.current;
 
@@ -33,7 +37,7 @@ const ThreejsOLD = () => {
     scene.background = new THREE.Color(0xdddddd);
     sceneRef.current = scene;
 
-    const camera = new THREE.PerspectiveCamera(75, 1, 0.01, 2000);
+    const camera = new THREE.PerspectiveCamera(65, 1, 0.01, 1000);
     camera.position.set(0, 0, 2);
     cameraRef.current = camera;
 
@@ -43,7 +47,7 @@ const ThreejsOLD = () => {
       antialias: true,
       powerPreference: "high-performance",
     });
-    renderer.setSize(760, 760);
+    renderer.setSize(924, 924);
     renderer.setPixelRatio(window.devicePixelRatio > 1 ? 2 : 1);
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.shadowMap.enabled = true;
@@ -51,10 +55,21 @@ const ThreejsOLD = () => {
     currentMount.appendChild(renderer.domElement);
     rendererRef.current = renderer;
 
-    const ambientLight = new THREE.AmbientLight(0x404040, 55);
+    const ambientLight = new THREE.AmbientLight(0x404040, 40);
     scene.add(ambientLight);
 
-    RectAreaLightUniformsLib.init();
+    // const loaderB = new THREE.TextureLoader();
+    // scene.background = loaderB.load("/1216430-nature.jpg");
+    // scene.background.encoding = THREE.SRGBColorSpace;
+
+    new RGBELoader().load("gothic_manor_02_4k.hdr", function (texture) {
+      texture.mapping = THREE.EquirectangularReflectionMapping;
+      scene.background = texture;
+      scene.enviroment = texture;
+
+      RectAreaLightUniformsLib.init();
+      
+    });
 
     const rectLight1 = new THREE.RectAreaLight(0xffffff, 0.7, 5, 5);
     rectLight1.position.set(0, 1, 6);
@@ -120,7 +135,9 @@ const ThreejsOLD = () => {
 
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
-    controls.dampingFactor = 0.05;
+    controls.dampingFactor = 0.08;
+    controls.enabled = OrbitControls0;
+    OrbitControlRef.current = controls;
 
     const loader = new GLTFLoader();
     const loadModel = (gltf) => {
@@ -137,7 +154,7 @@ const ThreejsOLD = () => {
           // Improve material quality
           if (child.material) {
             child.material.precision = "highp";
-            child.material.roughness = 0.3;
+            child.material.roughness = 0.4;
             if (child.material.map) {
               child.material.map.anisotropy =
                 renderer.capabilities.getMaxAnisotropy();
@@ -240,6 +257,7 @@ const ThreejsOLD = () => {
   useEffect(() => {
     if (model) {
       setSelectedMesh(null); // Reset selected mesh when model changes
+      setModelColor("#ffffff");
     }
   }, [model]);
 
@@ -248,6 +266,10 @@ const ThreejsOLD = () => {
       updatePlanePosition(modelBounds);
     }
   }, [modelBounds]);
+
+  useEffect(() => {
+    OrbitControlRef.current.enabled = OrbitControls0;
+  }, [OrbitControls0]);
 
   useEffect(() => {
     if (model) {
@@ -309,18 +331,17 @@ const ThreejsOLD = () => {
     const originalBackground = scene.background;
     scene.background = null;
 
-    renderer.setSize(4096,4096);
+    renderer.setSize(2048, 2048);
 
     if (format === "png") {
       renderer.render(scene, camera);
       const link = document.createElement("a");
-      link.href = renderer.domElement.toDataURL("image/png",1.0);
+      link.href = renderer.domElement.toDataURL("image/png", 1.0);
       link.download = "model.png";
       link.click();
     }
     scene.background = originalBackground;
-    renderer.setSize(760,760);
-
+    renderer.setSize(924, 924);
   };
 
   const handleLightPositionChange = (axis, value) => {
@@ -525,6 +546,12 @@ const ThreejsOLD = () => {
             </label>
           </div>
 
+          <div style={{ marginBottom: "10px" }}>
+            <button onClick={() => setOrbitControls0(!OrbitControls0)}>
+              OrbitControls {OrbitControls0 ? "on" : "off"}{" "}
+            </button>
+          </div>
+
           <button
             onClick={() => handleDownloadImage("png")}
             style={{ marginBottom: "10px" }}
@@ -537,7 +564,7 @@ const ThreejsOLD = () => {
           style={{
             width: "100%",
             height: "100%",
-            padding: "20px",
+            padding: "10px",
             boxSizing: "border-box",
             border: "1px solid #ccc",
             borderRadius: "4px",
