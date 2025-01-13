@@ -1,4 +1,4 @@
-// this code is working good  -- not optimize
+// this is stabel and fast code
 
 import React, { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
@@ -6,7 +6,7 @@ import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls";
 import { RectAreaLightUniformsLib } from "three/examples/jsm/lights/RectAreaLightUniformsLib";
 
-const Bn = () => {
+const ThreejsOLD = () => {
   const mountRef = useRef(null);
   const sceneRef = useRef(null);
   const cameraRef = useRef(null);
@@ -21,10 +21,10 @@ const Bn = () => {
   const [shadowBlur, setShadowBlur] = useState(1);
   const [selectedMesh, setSelectedMesh] = useState(null);
   const [modelBounds, setModelBounds] = useState(null);
-  const [modelColor, setModelColor] = useState("#ffffff");
+  const [selectedColorMesh, setSelectedColorMesh] = useState(null);
   const [colorChanged, setColorChanged] = useState(false);
   const [colorableMeshes, setColorableMeshes] = useState([]);
-  const [selectedColorMesh, setSelectedColorMesh] = useState(null);
+  const [modelColor, setModelColor] = useState("#ffffff");
 
   useEffect(() => {
     const currentMount = mountRef.current;
@@ -33,7 +33,7 @@ const Bn = () => {
     scene.background = new THREE.Color(0xdddddd);
     sceneRef.current = scene;
 
-    const camera = new THREE.PerspectiveCamera(65, 1, 0.01, 1000);
+    const camera = new THREE.PerspectiveCamera(75, 1, 0.01, 2000);
     camera.position.set(0, 0, 2);
     cameraRef.current = camera;
 
@@ -43,7 +43,7 @@ const Bn = () => {
       antialias: true,
       powerPreference: "high-performance",
     });
-    renderer.setSize(1024, 1024);
+    renderer.setSize(760, 760);
     renderer.setPixelRatio(window.devicePixelRatio > 1 ? 2 : 1);
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.shadowMap.enabled = true;
@@ -51,59 +51,62 @@ const Bn = () => {
     currentMount.appendChild(renderer.domElement);
     rendererRef.current = renderer;
 
-    const ambientLight = new THREE.AmbientLight(0x404040, 40.0);
+    const ambientLight = new THREE.AmbientLight(0x404040, 55);
     scene.add(ambientLight);
 
     RectAreaLightUniformsLib.init();
 
-    const rectLight1 = new THREE.RectAreaLight(0xffffff, 0.5, 5, 5);
+    const rectLight1 = new THREE.RectAreaLight(0xffffff, 0.7, 5, 5);
     rectLight1.position.set(0, 1, 6);
     rectLight1.lookAt(0, 0, 0);
     scene.add(rectLight1);
 
-    const Dlight = new THREE.DirectionalLight(0xffffff, 1);
+    const Dlight = new THREE.DirectionalLight(0xffffff, 0);
     Dlight.position.set(lightPosition.x, lightPosition.y, lightPosition.z);
     Dlight.castShadow = true;
     Dlight.target.position.set(0, 0, 0);
-    scene.add(Dlight);
     scene.add(Dlight.target);
 
     Dlight.shadow.mapSize.width = 1024;
     Dlight.shadow.mapSize.height = 1024;
     Dlight.shadow.camera.near = 0.01;
-    Dlight.shadow.camera.far = 800; // Set a fixed shadow depth
+    Dlight.shadow.camera.far = 50; // Set a fixed shadow depth
     Dlight.shadow.bias = -0.0001; // Reduce shadow artifacts
     Dlight.shadow.radius = shadowBlur;
 
+    scene.add(Dlight);
     DlightRef.current = Dlight;
 
-    const rectLight2 = new THREE.RectAreaLight(0xffffff, 0.5, 5, 5);
+    const rectLight2 = new THREE.RectAreaLight(0xffffff, 0.4, 5, 5);
     rectLight2.position.set(0, 1, -6);
     rectLight2.lookAt(0, 0, 0);
     scene.add(rectLight2);
 
-    const rectLight3 = new THREE.RectAreaLight(0xffffff, 0.5, 5, 5);
+    const rectLight3 = new THREE.RectAreaLight(0xffffff, 0.4, 5, 5);
     rectLight3.position.set(-6, 1, 0);
     rectLight3.lookAt(0, 0, 0);
     scene.add(rectLight3);
 
-    const rectLight4 = new THREE.RectAreaLight(0xffffff, 0.5, 5, 5);
+    const rectLight4 = new THREE.RectAreaLight(0xffffff, 0.4, 5, 5);
     rectLight4.position.set(6, 1, 0);
     rectLight4.lookAt(0, 0, 0);
     scene.add(rectLight4);
 
-    const rectLight = new THREE.RectAreaLight(0xffffff, 0.5, 5, 5);
+    const rectLight = new THREE.RectAreaLight(0xffffff, 0.4, 5, 5);
     rectLight.position.set(0, 4, 0);
     rectLight.lookAt(0, 0, 0);
     scene.add(rectLight);
 
-    const rectLightB = new THREE.RectAreaLight(0xffffff, 0.5, 5, 5);
+    const rectLightB = new THREE.RectAreaLight(0xffffff, 0.8, 5, 5);
     rectLightB.position.set(0, -4, 0);
     rectLightB.lookAt(0, 0, 0);
     scene.add(rectLightB);
 
-    const planeGeometry = new THREE.PlaneGeometry(1024, 1024);
-    const planeMaterial = new THREE.ShadowMaterial({ opacity: shadowOpacity });
+    const planeGeometry = new THREE.PlaneGeometry(500, 500);
+    const planeMaterial = new THREE.ShadowMaterial({
+      opacity: shadowOpacity,
+      color: "0xff0000",
+    });
     const plane = new THREE.Mesh(planeGeometry, planeMaterial);
     plane.rotation.x = -Math.PI / 2;
     plane.receiveShadow = true;
@@ -117,21 +120,27 @@ const Bn = () => {
 
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
-    controls.dampingFactor = 0.5;
+    controls.dampingFactor = 0.05;
 
     const loader = new GLTFLoader();
     const loadModel = (gltf) => {
       gltf.scene.traverse((child) => {
+        child.frustumCulled = false;
         if (child.isMesh) {
           child.castShadow = true;
           child.receiveShadow = true;
+
+          child.material.flatShading = false;
+          child.material.needsUpdate = true;
+          child.geometry.computeVertexNormals();
+
+          // Improve material quality
           if (child.material) {
             child.material.precision = "highp";
-            child.material.roughness = 0.25;
-            // Remove initial color setting, preserve original material color
+            child.material.roughness = 0.3;
             if (child.material.map) {
               child.material.map.anisotropy =
-                rendererRef.current.capabilities.getMaxAnisotropy();
+                renderer.capabilities.getMaxAnisotropy();
               child.material.map.minFilter = THREE.LinearFilter;
               child.material.map.magFilter = THREE.LinearFilter;
               child.material.map.generateMipmaps = true;
@@ -140,7 +149,7 @@ const Bn = () => {
           }
         }
       });
-      // ...rest of loadModel function...
+
       scene.add(gltf.scene);
 
       // Calculate model bounds
@@ -148,17 +157,13 @@ const Bn = () => {
       const center = box.getCenter(new THREE.Vector3());
       gltf.scene.position.sub(center);
 
-      // const size = box.getSize(new THREE.Vector3());
-      // const maxDim = Math.max(size.x, size.y, size.z);
-      // const scale = 1 / maxDim;
-      // gltf.scene.scale.set(scale, scale, scale);
-
       setModelBounds(box);
 
       // Update plane position based on new bounds
       if (planeRef.current) {
         updatePlanePosition(box);
       }
+
       return gltf.scene;
     };
 
@@ -247,23 +252,18 @@ const Bn = () => {
   useEffect(() => {
     if (model) {
       const meshesWithoutTexture = [];
-      const texturemesh = [];
       model.traverse((child) => {
         if (child.isMesh) {
           if (Array.isArray(child.material)) {
-            if (child.material.some(mat => !mat.map)) {
+            if (child.material.some((mat) => !mat.map)) {
               meshesWithoutTexture.push(child);
             }
           } else if (child.material && !child.material.map) {
             meshesWithoutTexture.push(child);
-          }else{
-            texturemesh.push(child);
           }
         }
       });
       setColorableMeshes(meshesWithoutTexture);
-      console.log("--->>>",texturemesh);
-      
     }
   }, [model]);
 
@@ -279,7 +279,6 @@ const Bn = () => {
     if (model) {
       const mesh = model.getObjectByName(selectedMeshName);
       setSelectedMesh(mesh);
-      // chnage heae------
     }
   };
 
@@ -310,14 +309,18 @@ const Bn = () => {
     const originalBackground = scene.background;
     scene.background = null;
 
+    renderer.setSize(4096,4096);
+
     if (format === "png") {
       renderer.render(scene, camera);
       const link = document.createElement("a");
-      link.href = renderer.domElement.toDataURL("image/png");
+      link.href = renderer.domElement.toDataURL("image/png",1.0);
       link.download = "model.png";
       link.click();
     }
     scene.background = originalBackground;
+    renderer.setSize(760,760);
+
   };
 
   const handleLightPositionChange = (axis, value) => {
@@ -352,20 +355,30 @@ const Bn = () => {
     }
   };
 
-  //--------------------------------------------------
+  const updatePlanePosition = (bounds) => {
+    if (!planeRef.current || !bounds) return;
+
+    const modelHeight = bounds.max.y - bounds.min.y;
+    const offset = modelHeight * 0.5;
+    planeRef.current.position.y = bounds.min.y - offset;
+  };
+
   const handleColorChange = (event) => {
     const newColor = event.target.value;
     setModelColor(newColor);
 
     if (selectedColorMesh && selectedColorMesh.isMesh) {
       if (Array.isArray(selectedColorMesh.material)) {
-        selectedColorMesh.material.forEach(mat => {
+        selectedColorMesh.material.forEach((mat) => {
           if (!mat.map) {
             mat.color.setStyle(newColor);
             mat.needsUpdate = true;
           }
         });
-      } else if (selectedColorMesh.material && !selectedColorMesh.material.map) {
+      } else if (
+        selectedColorMesh.material &&
+        !selectedColorMesh.material.map
+      ) {
         selectedColorMesh.material.color.setStyle(newColor);
         selectedColorMesh.material.needsUpdate = true;
       }
@@ -374,15 +387,8 @@ const Bn = () => {
 
   const handleColorMeshSelect = (event) => {
     const meshName = event.target.value;
-    const selected = colorableMeshes.find(mesh => mesh.name === meshName);
+    const selected = colorableMeshes.find((mesh) => mesh.name === meshName);
     setSelectedColorMesh(selected);
-  };
-
-  const updatePlanePosition = (bounds) => {
-    if (!planeRef.current || !bounds) return;
-    const modelHeight = bounds.max.y - bounds.min.y;
-    const offset = modelHeight * 0.5;
-    planeRef.current.position.y = bounds.min.y - offset;
   };
 
   return (
@@ -405,7 +411,6 @@ const Bn = () => {
                 onChange={handleMeshSelection}
                 style={{ marginLeft: "10px" }}
               >
-                {console.log(model)}
                 <option>select mesh</option>
                 {model &&
                   model.children
@@ -494,6 +499,7 @@ const Bn = () => {
               {" " + shadowBlur}
             </label>
           </div>
+
           <div style={{ marginBottom: "10px" }}>
             <label>
               Select Mesh to Color:
@@ -518,6 +524,7 @@ const Bn = () => {
               />
             </label>
           </div>
+
           <button
             onClick={() => handleDownloadImage("png")}
             style={{ marginBottom: "10px" }}
@@ -541,4 +548,4 @@ const Bn = () => {
   );
 };
 
-export default Bn;
+export default ThreejsOLD;
