@@ -29,12 +29,15 @@ const ThreejsOLD = () => {
 
   const [OrbitControls0, setOrbitControls0] = useState(true);
   const OrbitControlRef = useRef(null);
+  const BackimgRef = useRef(null);
+
+  const [saveCam, setsaveCam] = useState([]);
 
   useEffect(() => {
     const currentMount = mountRef.current;
 
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0xdddddd);
+    scene.background = new THREE.Color("#FBFBFB");
     sceneRef.current = scene;
 
     const camera = new THREE.PerspectiveCamera(65, 1, 0.01, 1000);
@@ -62,14 +65,16 @@ const ThreejsOLD = () => {
     // scene.background = loaderB.load("/1216430-nature.jpg");
     // scene.background.encoding = THREE.SRGBColorSpace;
 
-    new RGBELoader().load("gothic_manor_02_4k.hdr", function (texture) {
-      texture.mapping = THREE.EquirectangularReflectionMapping;
-      scene.background = texture;
-      scene.enviroment = texture;
+    BackimgRef.current = new RGBELoader().load(
+      "blur white shade.hdr",
+      function (texture) {
+        texture.mapping = THREE.EquirectangularReflectionMapping;
+        scene.background = texture;
+        scene.enviroment = texture;
 
-      RectAreaLightUniformsLib.init();
-      
-    });
+        RectAreaLightUniformsLib.init();
+      }
+    );
 
     const rectLight1 = new THREE.RectAreaLight(0xffffff, 0.7, 5, 5);
     rectLight1.position.set(0, 1, 6);
@@ -92,22 +97,22 @@ const ThreejsOLD = () => {
     scene.add(Dlight);
     DlightRef.current = Dlight;
 
-    const rectLight2 = new THREE.RectAreaLight(0xffffff, 0.4, 5, 5);
+    const rectLight2 = new THREE.RectAreaLight(0xffffff, 1, 5, 5);
     rectLight2.position.set(0, 1, -6);
     rectLight2.lookAt(0, 0, 0);
     scene.add(rectLight2);
 
-    const rectLight3 = new THREE.RectAreaLight(0xffffff, 0.4, 5, 5);
+    const rectLight3 = new THREE.RectAreaLight(0xffffff, 1, 5, 5);
     rectLight3.position.set(-6, 1, 0);
     rectLight3.lookAt(0, 0, 0);
     scene.add(rectLight3);
 
-    const rectLight4 = new THREE.RectAreaLight(0xffffff, 0.4, 5, 5);
+    const rectLight4 = new THREE.RectAreaLight(0xffffff, 1, 5, 5);
     rectLight4.position.set(6, 1, 0);
     rectLight4.lookAt(0, 0, 0);
     scene.add(rectLight4);
 
-    const rectLight = new THREE.RectAreaLight(0xffffff, 0.4, 5, 5);
+    const rectLight = new THREE.RectAreaLight(0xffffff, 1, 5, 5);
     rectLight.position.set(0, 4, 0);
     rectLight.lookAt(0, 0, 0);
     scene.add(rectLight);
@@ -154,7 +159,10 @@ const ThreejsOLD = () => {
           // Improve material quality
           if (child.material) {
             child.material.precision = "highp";
-            child.material.roughness = 0.4;
+            child.material.roughness = 0.5;
+            child.material.metalness = 0;
+            child.material.specular = 0;
+            child.material.shininess = 0;
             if (child.material.map) {
               child.material.map.anisotropy =
                 renderer.capabilities.getMaxAnisotropy();
@@ -412,6 +420,25 @@ const ThreejsOLD = () => {
     setSelectedColorMesh(selected);
   };
 
+  const handleSavePosition = () => {
+    setsaveCam([
+      ...saveCam,
+      {
+        position: cameraRef.current.position.clone(),
+        rotation: cameraRef.current.rotation.clone(),
+      },
+    ]);
+  };
+
+  const handleChangePosition = (event) => {
+    const selectedIndex = event.target.value;
+    if (selectedIndex !== "") {
+      const selectedPosition = saveCam[selectedIndex];
+      cameraRef.current.position.copy(selectedPosition.position);
+      cameraRef.current.rotation.copy(selectedPosition.rotation);
+    }
+  };
+
   return (
     <>
       <div style={{ display: "flex", alignContent: "space-between" }}>
@@ -450,6 +477,7 @@ const ThreejsOLD = () => {
               type="file"
               accept="image/*"
               onChange={handleTextureChange}
+              disabled={!selectedMesh}
               style={{ marginLeft: "10px" }}
             />
           </div>
@@ -551,6 +579,20 @@ const ThreejsOLD = () => {
               OrbitControls {OrbitControls0 ? "on" : "off"}{" "}
             </button>
           </div>
+          <button style={{ marginBottom: "10px" }} onClick={handleSavePosition}>
+            Save Model Position
+          </button>
+          <label style={{ marginBottom: "10px" }}>
+            Set Model Position
+            <select onChange={handleChangePosition}>
+              <option value="">Select Position</option>
+              {saveCam.map((p, indx) => (
+                <option key={indx} value={indx}>{`Position ${
+                  indx + 1
+                }`}</option>
+              ))}
+            </select>
+          </label>
 
           <button
             onClick={() => handleDownloadImage("png")}
