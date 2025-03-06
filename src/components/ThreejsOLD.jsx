@@ -1,47 +1,69 @@
-// this is stabel and fast code
+// this  code hase camera rotation prop , with all manual controlls with object movement and camera movement
+// 'use client'
 
 import React, { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader";
-import { OrbitControls } from "three/examples/jsm/controls/OrbitControls";
-import { RectAreaLightUniformsLib } from "three/examples/jsm/lights/RectAreaLightUniformsLib";
+import { DRACOLoader } from "three/examples/jsm/loaders/DRACOLoader";
 import { RGBELoader } from "three/examples/jsm/loaders/RGBELoader.js";
+import { OrbitControls } from "three/examples/jsm/controls/OrbitControls";
 
 const ThreejsOLD = () => {
   const mountRef = useRef(null);
   const sceneRef = useRef(null);
   const cameraRef = useRef(null);
   const rendererRef = useRef(null);
-  const DlightRef = useRef(null);
-  const planeRef = useRef(null);
   const [modelFile, setModelFile] = useState(null);
   const [model, setModel] = useState(null);
   const [defaultModel, setDefaultModel] = useState(null);
-  const [lightPosition, setLightPosition] = useState({ x: -4, y: 4, z: 5 });
-  const [shadowOpacity, setShadowOpacity] = useState(0.3);
-  const [shadowBlur, setShadowBlur] = useState(1);
   const [selectedMesh, setSelectedMesh] = useState(null);
-  const [modelBounds, setModelBounds] = useState(null);
+
   const [selectedColorMesh, setSelectedColorMesh] = useState(null);
-  const [colorChanged, setColorChanged] = useState(false);
+  const [currentColor, setCurrentColor] = useState("#000000");
+
   const [colorableMeshes, setColorableMeshes] = useState([]);
-  const [modelColor, setModelColor] = useState("#ffffff");
+  const [saveColour, setsaveColour] = useState([]);
 
-  const [OrbitControls0, setOrbitControls0] = useState(true);
-  const OrbitControlRef = useRef(null);
-  const BackimgRef = useRef(null);
+  const [zoom, setZoom] = useState(50);
+  const [radius, setRadius] = useState(5.5);
+  const [azimuth, setAzimuth] = useState(1.57);
+  const [polar, setPolar] = useState(Math.PI / 2);
+  const [rendersize, setrendersize] = useState();
 
-  const [saveCam, setsaveCam] = useState([]);
+  const modelRef = useRef(null);
+  const [modelMatenees, setmodelMatenees] = useState(0);
+  const [modelRoughness, setmodelRoughness] = useState(0);
+  const [modelOpacity, setModelOpacity] = useState(1.0);
+
+  const [isGlossy, setIsGlossy] = useState(true);
+  const [camrotation, setcamrotation] = useState(0);
+
+  const pivotRef = useRef(null);
+  const [useOrbitControls, setUseOrbitControls] = useState(false);
+  const controlsRef = useRef(null);
+
+  const DlightRef = useRef(null);
+  const [lightOn, setLightOn] = useState(false);
+  const [lightColor, setLightColor] = useState("#ffffff");
+  const [lightIntensity, setLightIntensity] = useState(1.0);
+  const [lightPosition, setLightPosition] = useState({ x: -4, y: 4, z: 5 });
 
   useEffect(() => {
     const currentMount = mountRef.current;
 
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color("#FBFBFB");
+    scene.background = new THREE.Color("#c0c0c0");
     sceneRef.current = scene;
 
-    const camera = new THREE.PerspectiveCamera(65, 1, 0.01, 1000);
-    camera.position.set(0, 0, 2);
+    let camera = new THREE.PerspectiveCamera(
+      20,
+      currentMount.clientWidth / currentMount.clientHeight,
+      0.1,
+      10000
+    );
+    camera.position.set(0, 0, 5.5);
+    camera.rotation.set(0, 0, 0);
+
     cameraRef.current = camera;
 
     const renderer = new THREE.WebGLRenderer({
@@ -50,162 +72,230 @@ const ThreejsOLD = () => {
       antialias: true,
       powerPreference: "high-performance",
     });
-    renderer.setSize(924, 924);
-    renderer.setPixelRatio(window.devicePixelRatio > 1 ? 2 : 1);
+    renderer.setSize(currentMount.clientWidth, currentMount.clientHeight);
+    renderer.setPixelRatio(window.devicePixelRatio);
     renderer.outputColorSpace = THREE.SRGBColorSpace;
+    renderer.physicallyCorrectLights = true;
     renderer.shadowMap.enabled = true;
-    renderer.shadowMap.type = THREE.PCFShadowMap;
-    currentMount.appendChild(renderer.domElement);
-    rendererRef.current = renderer;
+    renderer.gammaOutput = false; //--
+    renderer.gammaFactor = 1.0; //--
+    renderer.outputEncoding = THREE.SRGBColorSpace; //--
 
-    const ambientLight = new THREE.AmbientLight(0x404040, 40);
+    renderer.shadowMap.type = THREE.VSMShadowMap;
+
+    currentMount.appendChild(renderer.domElement);
+    setrendersize({
+      width: currentMount.clientWidth,
+      height: currentMount.clientHeight,
+    });
+    renderer.preserveDrawingBuffer = true;
+    rendererRef.current = renderer;
+    renderer.toneMapping = THREE.NoToneMapping; // Adjust exposure //--
+
+    const ambientLight = new THREE.AmbientLight(0x404040, 1);
     scene.add(ambientLight);
 
-    // const loaderB = new THREE.TextureLoader();
-    // scene.background = loaderB.load("/1216430-nature.jpg");
-    // scene.background.encoding = THREE.SRGBColorSpace;
+    const hemiLight = new THREE.HemisphereLight(0xffffff, 0x444444, 3); // Adjust intensity and colors as needed
+    hemiLight.position.set(0, 20, 0);
+    scene.add(hemiLight);
 
-    BackimgRef.current = new RGBELoader().load(
-      "blur white shade.hdr",
-      function (texture) {
-        texture.mapping = THREE.EquirectangularReflectionMapping;
-        scene.background = texture;
-        scene.enviroment = texture;
-
-        RectAreaLightUniformsLib.init();
-      }
-    );
-
-    const rectLight1 = new THREE.RectAreaLight(0xffffff, 0.7, 5, 5);
-    rectLight1.position.set(0, 1, 6);
-    rectLight1.lookAt(0, 0, 0);
-    scene.add(rectLight1);
-
-    const Dlight = new THREE.DirectionalLight(0xffffff, 0);
+    let Intensity = lightOn ? lightIntensity : 0;
+    const Dlight = new THREE.DirectionalLight(lightColor, Intensity);
     Dlight.position.set(lightPosition.x, lightPosition.y, lightPosition.z);
-    Dlight.castShadow = true;
     Dlight.target.position.set(0, 0, 0);
     scene.add(Dlight.target);
-
-    Dlight.shadow.mapSize.width = 1024;
-    Dlight.shadow.mapSize.height = 1024;
-    Dlight.shadow.camera.near = 0.01;
-    Dlight.shadow.camera.far = 50; // Set a fixed shadow depth
-    Dlight.shadow.bias = -0.0001; // Reduce shadow artifacts
-    Dlight.shadow.radius = shadowBlur;
-
     scene.add(Dlight);
     DlightRef.current = Dlight;
 
-    const rectLight2 = new THREE.RectAreaLight(0xffffff, 1, 5, 5);
-    rectLight2.position.set(0, 1, -6);
-    rectLight2.lookAt(0, 0, 0);
-    scene.add(rectLight2);
+    const pmremGenerator = new THREE.PMREMGenerator(renderer);
+    pmremGenerator.compileEquirectangularShader();
 
-    const rectLight3 = new THREE.RectAreaLight(0xffffff, 1, 5, 5);
-    rectLight3.position.set(-6, 1, 0);
-    rectLight3.lookAt(0, 0, 0);
-    scene.add(rectLight3);
-
-    const rectLight4 = new THREE.RectAreaLight(0xffffff, 1, 5, 5);
-    rectLight4.position.set(6, 1, 0);
-    rectLight4.lookAt(0, 0, 0);
-    scene.add(rectLight4);
-
-    const rectLight = new THREE.RectAreaLight(0xffffff, 1, 5, 5);
-    rectLight.position.set(0, 4, 0);
-    rectLight.lookAt(0, 0, 0);
-    scene.add(rectLight);
-
-    const rectLightB = new THREE.RectAreaLight(0xffffff, 0.8, 5, 5);
-    rectLightB.position.set(0, -4, 0);
-    rectLightB.lookAt(0, 0, 0);
-    scene.add(rectLightB);
-
-    const planeGeometry = new THREE.PlaneGeometry(500, 500);
-    const planeMaterial = new THREE.ShadowMaterial({
-      opacity: shadowOpacity,
-      color: "0xff0000",
+    new RGBELoader().load("env.hdr", (texture) => {
+      const envMap = pmremGenerator.fromEquirectangular(texture).texture;
+      // envMap.encoding = THREE.RGBM16Encoding;
+      envMap.encoding = THREE.SRGBColorSpace;
+      // scene.background = envMap;
+      scene.environment = envMap;
+      texture.dispose();
+      pmremGenerator.dispose();
     });
-    const plane = new THREE.Mesh(planeGeometry, planeMaterial);
-    plane.rotation.x = -Math.PI / 2;
-    plane.receiveShadow = true;
-    planeRef.current = plane;
-
-    // Initial position - will be updated when model loads
-    if (modelBounds) {
-      updatePlanePosition(modelBounds);
-    }
-    scene.add(plane);
 
     const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enabled = useOrbitControls;
     controls.enableDamping = true;
-    controls.dampingFactor = 0.08;
-    controls.enabled = OrbitControls0;
-    OrbitControlRef.current = controls;
+    controls.dampingFactor = 0.5;
+    controls.minDistance = 2;
+    controls.maxDistance = 30;
+    controlsRef.current = controls;
 
+    const animate = () => {
+      requestAnimationFrame(animate);
+      if (controlsRef.current && useOrbitControls) {
+        controls.update();
+      }
+      renderer.render(scene, camera);
+    };
+    animate();
+
+    const handleResize = () => {
+      const width = currentMount.clientWidth;
+      const height = currentMount.clientHeight;
+      camera.aspect = width / height;
+      camera.updateProjectionMatrix();
+      renderer.setSize(width, height);
+    };
+    window.addEventListener("resize", handleResize);
+    handleResize();
+    setUseOrbitControls(true);
+    return () => {
+      if (currentMount) {
+        currentMount.removeChild(renderer.domElement);
+      }
+      if (controlsRef.current && useOrbitControls) {
+        controlsRef.current.dispose();
+      }
+      window.removeEventListener("resize", handleResize);
+      setDefaultModel(null);
+      scene.remove(modelRef.current);
+      modelRef.current = null;
+      renderer.dispose();
+    };
+  }, []);
+
+  useEffect(() => {
     const loader = new GLTFLoader();
+    const dracoLoader = new DRACOLoader();
+    dracoLoader.setDecoderPath("draco/");
+    loader.setDRACOLoader(dracoLoader);
+  
     const loadModel = (gltf) => {
-      gltf.scene.traverse((child) => {
-        child.frustumCulled = false;
-        if (child.isMesh) {
-          child.castShadow = true;
-          child.receiveShadow = true;
-
-          child.material.flatShading = false;
-          child.material.needsUpdate = true;
-          child.geometry.computeVertexNormals();
-
-          // Improve material quality
+      console.log("in loader");
+  
+      if (isGlossy) {
+        console.log("Loading model with glossy effect");
+  
+        gltf.scene.traverse((child) => {
+          const Pmaterial = new THREE.MeshPhysicalMaterial({
+            // Ensure transparency and glass effect
+            transmission: 0,
+            roughness: 0,
+            metalness: 0,
+            ior: 1.5,
+            clearcoat: 0.4,
+            clearcoatRoughness: 0.1,
+            thickness: 1,
+            opacity: 1,
+            transparent: true,
+            specularColor: "#FEFEFE",
+            emissiveIntensity: 0,
+            aoMapIntensity: 1,
+            side: 0,
+            emissive: "#000000",
+            depthTest: true,
+          });
+  
+          if (child.material && child.material.color) {
+            Pmaterial.color = child.material.color;
+          }
+  
+          child.material = Pmaterial;
+          child.frustumCulled = false;
+  
           if (child.material) {
-            child.material.precision = "highp";
-            child.material.roughness = 0.5;
-            child.material.metalness = 0;
-            child.material.specular = 0;
-            child.material.shininess = 0;
-            if (child.material.map) {
-              child.material.map.anisotropy =
-                renderer.capabilities.getMaxAnisotropy();
-              child.material.map.minFilter = THREE.LinearFilter;
-              child.material.map.magFilter = THREE.LinearFilter;
-              child.material.map.generateMipmaps = true;
-              child.material.map.colorSpace = THREE.SRGBColorSpace;
+            // Set other attributes for a glassy effect
+            child.material.normalMapType = 0;
+            child.material.sheen = 0;
+            child.material.depthFunc = 3;
+            child.material.depthWrite = true;
+            child.material.needsUpdate = true;
+            child.material.shadowSide = null;
+            child.material.specularIntensity = 1;
+            child.material.clearcoatNormalScale = {
+              x: 1,
+              y: 1,
+            };
+          }
+          if (child.isMesh) {
+            child.castShadow = true;
+            child.receiveShadow = true;
+            child.material.flatShading = false; // Smooth shading for plastic
+            child.geometry.computeVertexNormals();
+            child.encoding = THREE.SRGBColorSpace;
+          }
+        });
+      } else {
+        console.log("Loading model with Mate effect");
+        gltf.scene.traverse((child) => {
+          child.frustumCulled = false;
+          if (child.isMesh) {
+            child.castShadow = true;
+            child.receiveShadow = true;
+  
+            child.material.flatShading = false;
+            child.material.needsUpdate = true;
+            child.geometry.computeVertexNormals();
+  
+            // Improve material quality
+            if (child.material) {
+              child.material.precision = "highp";
+              child.encoding = THREE.SRGBColorSpace;
+  
+              if (child.material.map) {
+                child.material.map.anisotropy =
+                  rendererRef.current.capabilities.getMaxAnisotropy();
+                child.material.map.minFilter = THREE.LinearFilter;
+                child.material.map.magFilter = THREE.LinearFilter;
+                child.material.map.generateMipmaps = true;
+                child.material.map = null;
+              }
             }
           }
-        }
-      });
-
-      scene.add(gltf.scene);
-
+        });
+      }
+  
+      const pivot = new THREE.Group();
+      pivot.add(gltf.scene);
+  
+      sceneRef.current.add(pivot);
+  
+      modelRef.current = gltf.scene;
+      pivotRef.current = pivot;
+  
       // Calculate model bounds
       const box = new THREE.Box3().setFromObject(gltf.scene);
       const center = box.getCenter(new THREE.Vector3());
       gltf.scene.position.sub(center);
-
-      setModelBounds(box);
-
-      // Update plane position based on new bounds
-      if (planeRef.current) {
-        updatePlanePosition(box);
-      }
-
+  
       return gltf.scene;
     };
-
-    if (!modelFile) {
-      loader.load("/BCAA Supplement Container Black.glb", (gltf) => {
-        const modelScene = loadModel(gltf);
-        setDefaultModel(modelScene);
-        setModel(modelScene);
-      });
-    }
-
+  
+    const removeCurrentModel = () => {
+      console.log("in remove function");
+  
+      if (modelRef.current) {
+        sceneRef.current.remove(modelRef.current);
+        modelRef.current = null;
+      }
+      if (pivotRef.current) {
+        sceneRef.current.remove(pivotRef.current);
+        pivotRef.current = null;
+      }
+    };
+  
+    // Remove the current model before loading a new one
+    removeCurrentModel();
+  
     if (modelFile) {
+      console.log("Loading model from file");
+  
       if (defaultModel) {
-        scene.remove(defaultModel);
+        sceneRef.current.remove(defaultModel);
+        pivotRef.current = null;
+        sceneRef.current.remove(pivotRef.current);
+  
         setDefaultModel(null);
       }
-
+  
       const reader = new FileReader();
       reader.onload = (event) => {
         loader.parse(event.target.result, "", (gltf) => {
@@ -215,69 +305,24 @@ const ThreejsOLD = () => {
       };
       reader.readAsArrayBuffer(modelFile);
     }
+  
+    // if (!modelFile) {
+    //   console.log("Loading default model");
+  
+    //   loader.load("/Pill Bottle 3.glb", (gltf) => {
+    //     const modelScene = loadModel(gltf);
+    //     setModel(modelScene);
+    //     setDefaultModel(modelScene);
+    //   });
+    // }
+  }, [modelFile, isGlossy]);
 
-    const animate = () => {
-      controls.update();
-      requestAnimationFrame(animate);
-      renderer.render(scene, camera);
-    };
-    animate();
-
-    const handleResize = () => {
-      camera.aspect = currentMount.clientWidth / currentMount.clientHeight;
-      camera.updateProjectionMatrix();
-      renderer.setSize(currentMount.clientWidth, currentMount.clientHeight);
-    };
-    window.addEventListener("resize", handleResize);
-
-    return () => {
-      if (currentMount) {
-        currentMount.removeChild(renderer.domElement);
-      }
-      window.removeEventListener("resize", handleResize);
-      setDefaultModel(null);
-      renderer.dispose();
-    };
-  }, [modelFile]);
-
-  useEffect(() => {
-    if (DlightRef.current) {
-      DlightRef.current.position.set(
-        lightPosition.x,
-        lightPosition.y,
-        lightPosition.z
-      );
-    }
-  }, [lightPosition]);
-
-  useEffect(() => {
-    if (planeRef.current) {
-      planeRef.current.material.opacity = shadowOpacity;
-    }
-  }, [shadowOpacity]);
-
-  useEffect(() => {
-    if (planeRef.current) {
-      planeRef.current.material.needsUpdate = true;
-    }
-  }, [shadowBlur]);
 
   useEffect(() => {
     if (model) {
-      setSelectedMesh(null); // Reset selected mesh when model changes
-      setModelColor("#ffffff");
+      setSelectedMesh(null);
     }
   }, [model]);
-
-  useEffect(() => {
-    if (modelBounds) {
-      updatePlanePosition(modelBounds);
-    }
-  }, [modelBounds]);
-
-  useEffect(() => {
-    OrbitControlRef.current.enabled = OrbitControls0;
-  }, [OrbitControls0]);
 
   useEffect(() => {
     if (model) {
@@ -297,15 +342,117 @@ const ThreejsOLD = () => {
     }
   }, [model]);
 
+  const [isMouseDown, setIsMouseDown] = useState(false);
+  const [lastMousePos, setLastMousePos] = useState({ x: 0, y: 0 });
+  const [mouseControls, setMouseControls] = useState(false);
+
+  useEffect(() => {
+    if (useOrbitControls) return; // Prevent mouse controls when orbit is active
+    const onMouseMove = (event) => {
+      if (!isMouseDown) return;
+
+      const deltaX = event.clientX - lastMousePos.x;
+      const deltaY = event.clientY - lastMousePos.y;
+
+      // Apply rotation to the model based on mouse movement
+      if (modelRef.current && pivotRef.current) {
+        // Rotate only on one axis at a time
+        if (Math.abs(deltaX) > Math.abs(deltaY)) {
+          pivotRef.current.rotation.y += deltaX * 0.01; // Rotate around Y-axis (horizontal)
+        } else {
+          pivotRef.current.rotation.x += deltaY * 0.01; // Rotate around X-axis (vertical)
+        }
+      }
+      // Update last mouse position
+      setLastMousePos({ x: event.clientX, y: event.clientY });
+    };
+
+    const onMouseDown = (event) => {
+      setIsMouseDown(true);
+      setLastMousePos({ x: event.clientX, y: event.clientY });
+    };
+
+    const onMouseUp = () => {
+      setIsMouseDown(false);
+    };
+
+    const onMouseScroll = (event) => {
+      if (modelRef.current && pivotRef.current) {
+        if (event.deltaY > 0) {
+          pivotRef.current.position.z -= 0.3; // Zoom out
+        } else {
+          pivotRef.current.position.z += 0.3; // Zoom in
+        }
+      }
+    };
+
+    // Attach mouse events to the canvas, not the window
+    const canvas = mountRef.current;
+    if (canvas && mouseControls) {
+      canvas.addEventListener("mousedown", onMouseDown);
+      canvas.addEventListener("mouseup", onMouseUp);
+      canvas.addEventListener("mousemove", onMouseMove);
+      canvas.addEventListener("wheel", onMouseScroll);
+    }
+
+    if (!mouseControls && pivotRef.current) {
+      canvas.removeEventListener("mousedown", onMouseDown);
+      canvas.removeEventListener("mouseup", onMouseUp);
+      canvas.removeEventListener("mousemove", onMouseMove);
+      canvas.removeEventListener("wheel", onMouseScroll);
+
+      pivotRef.current.rotation.x = 0;
+      pivotRef.current.rotation.y = 0;
+      pivotRef.current.position.z = 0;
+    }
+
+    return () => {
+      // Clean up event listeners when component unmounts
+      const canvas = mountRef.current;
+      if (canvas) {
+        canvas.removeEventListener("mousedown", onMouseDown);
+        canvas.removeEventListener("mouseup", onMouseUp);
+        canvas.removeEventListener("mousemove", onMouseMove);
+        canvas.removeEventListener("wheel", onMouseScroll);
+      }
+    };
+  }, [isMouseDown, lastMousePos, mouseControls, useOrbitControls]);
+
+  useEffect(() => {
+    if (mouseControls) {
+      handelResetPosition();
+    }
+  }, [mouseControls]);
+
+  useEffect(() => {
+    if (controlsRef.current) {
+      cameraRef.current.position.set(0, 0, 5.5);
+      cameraRef.current.rotation.set(0, 0, 0);
+    }
+  }, [useOrbitControls]);
+
+  useEffect(() => {
+    if (controlsRef.current) {
+      controlsRef.current.enabled = useOrbitControls;
+
+      // Disable other controls when OrbitControls is active
+      if (useOrbitControls) {
+        setMouseControls(false);
+        // Reset camera parameters to avoid conflicts
+        handelResetPosition();
+      }
+    }
+  }, [useOrbitControls]);
+
   const handleFileChange = (event) => {
     setModelFile(event.target.files[0]);
     setSelectedMesh(null);
-    setColorChanged(false); // Reset color changed flag for new model
+    handelResetPosition();
+    // setColorChanged(false);
   };
 
   const handleMeshSelection = (event) => {
     const selectedMeshName = event.target.value;
-
     if (model) {
       const mesh = model.getObjectByName(selectedMeshName);
       setSelectedMesh(mesh);
@@ -320,10 +467,18 @@ const ThreejsOLD = () => {
       reader.onload = (e) => {
         const texture = new THREE.TextureLoader().load(e.target.result);
         texture.flipY = false;
-        texture.minFilter = THREE.LinearFilter;
+
+        texture.colorSpace = THREE.SRGBColorSpace;
+        texture.encoding = THREE.SRGBColorSpace; // Ensure correct color encoding
+        texture.minFilter = THREE.NearestMipmapLinearFilter;
+        texture.generateMipmaps = true; // Enable mipmap generation
+        texture.magFilter = THREE.LinearFilter; // Use linear filter for magnification
+        texture.wrapS = THREE.ClampToEdgeWrapping;
+        texture.wrapT = THREE.ClampToEdgeWrapping;
         texture.anisotropy =
           rendererRef.current.capabilities.getMaxAnisotropy();
-        texture.colorSpace = THREE.SRGBColorSpace;
+
+        texture.mapping = THREE.UVMapping;
         selectedMesh.material.map = texture;
         selectedMesh.material.needsUpdate = true;
       };
@@ -335,6 +490,8 @@ const ThreejsOLD = () => {
     const scene = sceneRef.current;
     const camera = cameraRef.current;
     const renderer = rendererRef.current;
+
+    const { width, height } = rendersize;
 
     const originalBackground = scene.background;
     scene.background = null;
@@ -349,7 +506,198 @@ const ThreejsOLD = () => {
       link.click();
     }
     scene.background = originalBackground;
-    renderer.setSize(924, 924);
+    renderer.setSize(width, height);
+  };
+
+  const handleColorChange = (event) => {
+    const newColor = event.target.value;
+    setCurrentColor(newColor);
+
+    if (selectedColorMesh && selectedColorMesh.isMesh) {
+      if (Array.isArray(selectedColorMesh.material)) {
+        selectedColorMesh.material.forEach((mat) => {
+          if (!mat.map) {
+            mat.color.setStyle(newColor);
+            mat.needsUpdate = true;
+          }
+        });
+      } else if (
+        selectedColorMesh.material &&
+        !selectedColorMesh.material.map
+      ) {
+        selectedColorMesh.material.color.setStyle(newColor);
+        selectedColorMesh.material.needsUpdate = true;
+        setsaveColour([...saveColour, { selectedColorMesh, newColor }]); // save the colour with mesh
+      }
+    }
+  };
+
+  // save position of camera and light
+  const handleColorMeshSelect = (event) => {
+    const meshName = event.target.value;
+    const mesh = model.getObjectByName(meshName);
+    setSelectedColorMesh(mesh);
+    if (mesh && mesh.material && mesh.material.color) {
+      setCurrentColor("#" + mesh.material.color.getHexString());
+    }
+  };
+
+  const handleZoomChange = (event) => {
+    const newZoom = parseInt(event.target.value);
+    setZoom(newZoom);
+    const newRadius = 10 - newZoom / 11;
+    setRadius(newRadius);
+    updateCameraPosition(newRadius, polar, azimuth, camrotation);
+  };
+
+  const handleAzimuthChange = (event) => {
+    const angle = (parseFloat(event.target.value) * Math.PI) / 180;
+    setAzimuth(angle);
+    updateCameraPosition(radius, polar, angle, camrotation);
+  };
+
+  const handlePolarChange = (event) => {
+    const angle = (parseFloat(event.target.value) * Math.PI) / 180;
+    setPolar(angle);
+    updateCameraPosition(radius, angle, azimuth, camrotation);
+  };
+
+  const handelCameraRotation = (event) => {
+    const val = parseFloat(event.target.value);
+    setcamrotation(val);
+    updateCameraPosition(radius, polar, azimuth, val);
+  };
+
+  const updateCameraPosition = (r, p, a, rotation) => {
+    if (!cameraRef.current || useOrbitControls) return; // Skip if orbit controls active
+
+    // Calculate camera position on sphere
+    const x = r * Math.sin(p) * Math.cos(a);
+    const z = r * Math.sin(p) * Math.sin(a);
+    const y = r * Math.cos(p);
+
+    cameraRef.current.position.set(x, y, z);
+    cameraRef.current.lookAt(0, 0, 0);
+    cameraRef.current.rotateZ(rotation);
+
+    // Update camera matrix
+    cameraRef.current.updateMatrix();
+    cameraRef.current.updateMatrixWorld();
+  };
+
+  const handelResetPosition = () => {
+    setZoom(50);
+    setRadius(5.5);
+    setAzimuth(1.57);
+    setPolar(Math.PI / 2);
+    setcamrotation(0);
+    updateCameraPosition(5.5, Math.PI / 2, 1.57, 0);
+  };
+
+  const handelHDR = (event) => {
+    const file = event?.target?.files[0];
+
+    if (file) {
+      const url = URL.createObjectURL(file);
+      const pmremGenerator = new THREE.PMREMGenerator(rendererRef.current);
+      pmremGenerator.compileEquirectangularShader();
+
+      const loader = new RGBELoader();
+      loader.load(url, (texture) => {
+        texture.mapping = THREE.EquirectangularReflectionMapping;
+        sceneRef.current.environment = null;
+        const envMap = pmremGenerator.fromEquirectangular(texture).texture;
+        sceneRef.current.environment = envMap;
+        pmremGenerator.dispose();
+      });
+    }
+  };
+
+  const handelMetalnessChange = (event) => {
+    let model = modelRef.current;
+    let value = parseFloat(event.target.value);
+    let mesh = selectedColorMesh;
+    setmodelMatenees(value);
+
+    if (model && mesh) {
+      mesh.traverse((child) => {
+        if (child.isMesh) {
+          if (Array.isArray(child.material)) {
+            child.material.forEach((mat) => {
+              mat.metalness = value;
+            });
+          } else {
+            child.material.metalness = value;
+          }
+        }
+      });
+    }
+  };
+
+  const handelRoughnessChange = (event) => {
+    let model = modelRef.current;
+    let value = parseFloat(event.target.value);
+    let mesh = selectedColorMesh;
+    setmodelRoughness(value);
+
+    if (model && mesh) {
+      mesh.traverse((child) => {
+        if (child.isMesh) {
+          if (Array.isArray(child.material)) {
+            child.material.forEach((mat) => {
+              mat.roughness = value;
+            });
+          } else {
+            child.material.roughness = value;
+          }
+        }
+      });
+    }
+  };
+
+  const handleOpacityChange = (event) => {
+    let model = modelRef.current;
+    let value = parseFloat(event.target.value);
+    let mesh = selectedColorMesh;
+    setModelOpacity(value);
+
+    if (model && mesh) {
+      mesh.traverse((child) => {
+        if (child.isMesh) {
+          if (Array.isArray(child.material)) {
+            child.material.forEach((mat) => {
+              if (mat.isMeshPhysicalMaterial || mat.isMeshStandardMaterial) {
+                mat.opacity = value;
+                mat.transparent = value < 1; // Enable transparency when opacity < 1
+              }
+            });
+          } else {
+            if (
+              child.material.isMeshPhysicalMaterial ||
+              child.material.isMeshStandardMaterial
+            ) {
+              child.material.opacity = value;
+              child.material.transparent = value < 1; // Enable transparency when opacity < 1
+            }
+          }
+        }
+      });
+    }
+  };
+
+  const handelLightOn = (val) => {
+    if (val) {
+      DlightRef.current.intensity = lightIntensity;
+    } else {
+      DlightRef.current.intensity = 0;
+    }
+    setLightOn(val);
+  };
+
+  const handelLightColour = (val) => {
+    const color = new THREE.Color(val);
+    DlightRef.current.color = color;
+    setLightColor(val);
   };
 
   const handleLightPositionChange = (axis, value) => {
@@ -367,82 +715,23 @@ const ThreejsOLD = () => {
     });
   };
 
-  const handleShadowOpacityChange = (value) => {
-    const newOpacity = parseFloat(value);
-    setShadowOpacity(newOpacity);
-    if (planeRef.current) {
-      planeRef.current.material.opacity = newOpacity;
-      planeRef.current.material.needsUpdate = true;
-    }
-  };
-
-  const handleShadowBlurChange = (value) => {
-    const newBlur = parseInt(value);
-    setShadowBlur(newBlur);
-    if (DlightRef.current) {
-      DlightRef.current.shadow.radius = newBlur;
-    }
-  };
-
-  const updatePlanePosition = (bounds) => {
-    if (!planeRef.current || !bounds) return;
-
-    const modelHeight = bounds.max.y - bounds.min.y;
-    const offset = modelHeight * 0.5;
-    planeRef.current.position.y = bounds.min.y - offset;
-  };
-
-  const handleColorChange = (event) => {
-    const newColor = event.target.value;
-    setModelColor(newColor);
-
-    if (selectedColorMesh && selectedColorMesh.isMesh) {
-      if (Array.isArray(selectedColorMesh.material)) {
-        selectedColorMesh.material.forEach((mat) => {
-          if (!mat.map) {
-            mat.color.setStyle(newColor);
-            mat.needsUpdate = true;
-          }
-        });
-      } else if (
-        selectedColorMesh.material &&
-        !selectedColorMesh.material.map
-      ) {
-        selectedColorMesh.material.color.setStyle(newColor);
-        selectedColorMesh.material.needsUpdate = true;
-      }
-    }
-  };
-
-  const handleColorMeshSelect = (event) => {
-    const meshName = event.target.value;
-    const selected = colorableMeshes.find((mesh) => mesh.name === meshName);
-    setSelectedColorMesh(selected);
-  };
-
-  const handleSavePosition = () => {
-    setsaveCam([
-      ...saveCam,
-      {
-        position: cameraRef.current.position.clone(),
-        rotation: cameraRef.current.rotation.clone(),
-      },
-    ]);
-  };
-
-  const handleChangePosition = (event) => {
-    const selectedIndex = event.target.value;
-    if (selectedIndex !== "") {
-      const selectedPosition = saveCam[selectedIndex];
-      cameraRef.current.position.copy(selectedPosition.position);
-      cameraRef.current.rotation.copy(selectedPosition.rotation);
-    }
+  const handelLightIntensity = (val) => {
+    DlightRef.current.intensity = val;
+    setLightIntensity(val);
   };
 
   return (
     <>
-      <div style={{ display: "flex", alignContent: "space-between" }}>
-        <div style={{ padding: "20px", fontFamily: "Arial, sans-serif" }}>
+      <div
+        style={{
+          display: "flex",
+          alignContent: "space-between",
+          height: "100vh",
+          width: "140vh",
+          padding: "10px",
+        }}
+      >
+        <div style={{ padding: "10px", fontFamily: "Arial, sans-serif" }}>
           <label>
             Select Model :
             <input
@@ -452,6 +741,14 @@ const ThreejsOLD = () => {
               style={{ marginBottom: "10px" }}
             />
           </label>
+
+          <button
+            style={{ marginBottom: "10px" }}
+            onClick={() => setIsGlossy(!isGlossy)}
+          >
+            Matterial Change to {isGlossy ? "Matt" : "Glossy"}
+          </button>
+
           <div style={{ marginBottom: "10px" }}>
             <label>
               Select Mesh:
@@ -481,77 +778,10 @@ const ThreejsOLD = () => {
               style={{ marginLeft: "10px" }}
             />
           </div>
-          <div style={{ marginBottom: "10px" }}>
-            <label style={{ display: "block", marginBottom: "5px" }}>
-              Light X:
-              <input
-                type="range"
-                min="-20"
-                max="20"
-                step="0.5"
-                value={lightPosition.x}
-                onChange={(e) => handleLightPositionChange("x", e.target.value)}
-                style={{ marginLeft: "10px", verticalAlign: "middle" }}
-              />
-              {" " + lightPosition.x}
-            </label>
-            <label style={{ display: "block", marginBottom: "5px" }}>
-              Light Y:
-              <input
-                type="range"
-                min="-20"
-                max="20"
-                step="0.5"
-                value={lightPosition.y}
-                onChange={(e) => handleLightPositionChange("y", e.target.value)}
-                style={{ marginLeft: "10px", verticalAlign: "middle" }}
-              />
-              {" " + lightPosition.y}
-            </label>
-            <label style={{ display: "block", marginBottom: "5px" }}>
-              Light Z:
-              <input
-                type="range"
-                min="-20"
-                max="20"
-                step="0.5"
-                value={lightPosition.z}
-                onChange={(e) => handleLightPositionChange("z", e.target.value)}
-                style={{ marginLeft: "10px", verticalAlign: "middle" }}
-              />
-              {" " + lightPosition.z}
-            </label>
-            <label style={{ display: "block", marginBottom: "5px" }}>
-              Shadow Opacity:
-              <input
-                type="range"
-                min="0"
-                max="1"
-                step="0.01"
-                value={shadowOpacity}
-                onChange={(e) => handleShadowOpacityChange(e.target.value)}
-                style={{ marginLeft: "10px", verticalAlign: "middle" }}
-              />
-              {" " + shadowOpacity}
-            </label>
-            <label style={{ display: "block", marginBottom: "5px" }}>
-              Shadow Blur:
-              <input
-                type="range"
-                min="0"
-                max="10"
-                step="1"
-                value={shadowBlur}
-                onChange={(e) => handleShadowBlurChange(e.target.value)}
-                style={{ marginLeft: "10px", verticalAlign: "middle" }}
-              />
-              {" " + shadowBlur}
-            </label>
-          </div>
 
           <div style={{ marginBottom: "10px" }}>
             <label>
-              Select Mesh to Color:
+              Select Mesh to colour:
               <select
                 onChange={handleColorMeshSelect}
                 style={{ marginLeft: "10px", marginRight: "10px" }}
@@ -566,7 +796,7 @@ const ThreejsOLD = () => {
               </select>
               <input
                 type="color"
-                value={modelColor}
+                value={currentColor}
                 onChange={handleColorChange}
                 disabled={!selectedColorMesh}
                 style={{ verticalAlign: "middle" }}
@@ -575,41 +805,248 @@ const ThreejsOLD = () => {
           </div>
 
           <div style={{ marginBottom: "10px" }}>
-            <button onClick={() => setOrbitControls0(!OrbitControls0)}>
-              OrbitControls {OrbitControls0 ? "on" : "off"}{" "}
-            </button>
+            <label>
+              Select Mesh to edit:
+              <select
+                onChange={handleColorMeshSelect}
+                style={{ marginLeft: "10px", marginRight: "10px" }}
+                value={selectedColorMesh?.name || ""}
+              >
+                <option>select mesh</option>
+                {model &&
+                  model.children
+                    .filter((child) => child.isMesh)
+                    .map((child) => (
+                      <option key={child.name} value={child.name}>
+                        {child.name}
+                      </option>
+                    ))}
+              </select>
+            </label>
           </div>
-          <button style={{ marginBottom: "10px" }} onClick={handleSavePosition}>
-            Save Model Position
-          </button>
-          <label style={{ marginBottom: "10px" }}>
-            Set Model Position
-            <select onChange={handleChangePosition}>
-              <option value="">Select Position</option>
-              {saveCam.map((p, indx) => (
-                <option key={indx} value={indx}>{`Position ${
-                  indx + 1
-                }`}</option>
-              ))}
-            </select>
-          </label>
+
+          <div style={{ margin: "10px" }}>
+            <label>Metalness</label>
+            <input
+              type="range"
+              min="0"
+              max="2"
+              step={0.01}
+              disabled={!selectedColorMesh}
+              value={modelMatenees}
+              onChange={handelMetalnessChange}
+            />
+            {" " + parseInt(modelMatenees * 100) + "%"}
+          </div>
+
+          <div style={{ margin: "10px" }}>
+            <label>Roughness</label>
+            <input
+              type="range"
+              min="0"
+              max="1"
+              step={0.01}
+              disabled={!selectedColorMesh}
+              value={modelRoughness}
+              onChange={handelRoughnessChange}
+            />
+            {" " + parseInt(modelRoughness * 100) + "%"}
+          </div>
+
+          <div style={{ margin: "10px" }}>
+            <label> Opacity </label>
+            <input
+              type="range"
+              min="0"
+              max="1.0"
+              step={0.1}
+              disabled={!selectedColorMesh}
+              value={modelOpacity}
+              onChange={handleOpacityChange}
+            />
+            {" " + parseInt(modelOpacity * 100) + "%"}
+          </div>
+
+          <div style={{ marginBottom: "10px" }}>
+            <label>
+              Select hdr Image:
+              <input
+                type="file"
+                accept=".hdr"
+                onChange={handelHDR}
+                style={{ marginBottom: "10px" }}
+              />
+            </label>
+          </div>
+
+          <div style={{ margin: "10px" }}>
+            <label>Zoom</label>
+            <input
+              type="range"
+              min="1"
+              max="100"
+              step="1"
+              disabled={mouseControls || useOrbitControls}
+              value={zoom}
+              onChange={handleZoomChange}
+            />
+            {" " + parseInt(zoom)}
+          </div>
+
+          <div style={{ margin: "10px" }}>
+            <label>Horizontal Rotation </label>
+            <input
+              type="range"
+              min="0"
+              max="360"
+              disabled={mouseControls || useOrbitControls}
+              value={(azimuth * 180) / Math.PI}
+              onChange={handleAzimuthChange}
+            />
+          </div>
+          <div style={{ margin: "10px" }}>
+            <label>Vertical Rotation</label>
+            <input
+              type="range"
+              min="0"
+              max="180"
+              disabled={mouseControls || useOrbitControls}
+              value={(polar * 180) / Math.PI}
+              onChange={handlePolarChange}
+            />
+          </div>
+
+          <div style={{ margin: "10px" }}>
+            <label>camera Rotation</label>
+            <input
+              type="range"
+              min="0"
+              max="6.28"
+              step="0.01"
+              disabled={mouseControls || useOrbitControls}
+              value={camrotation}
+              onChange={(e) => handelCameraRotation(e)}
+            />
+            {" " + camrotation}
+          </div>
 
           <button
             onClick={() => handleDownloadImage("png")}
-            style={{ marginBottom: "10px" }}
+            style={{ margin: "10px" }}
           >
             Download PNG
           </button>
+
+          <br></br>
+          <button
+            style={{ margin: "10px" }}
+            disabled={useOrbitControls}
+            onClick={() => setMouseControls(!mouseControls)}
+          >
+            Mouse control {mouseControls ? "on" : "off"}{" "}
+          </button>
+
+          <button
+            style={{ margin: "10px" }}
+            onClick={() => setUseOrbitControls(!useOrbitControls)}
+            disabled={mouseControls}
+          >
+            Orbit Controls {useOrbitControls ? "on" : "off"}
+          </button>
+
+          <br></br>
+          <button
+            style={{ marginBottom: "10px" }}
+            onClick={() => handelLightOn(!lightOn)}
+          >
+            Light {lightOn ? "On" : "Off"}
+          </button>
+
+          <br></br>
+          <div style={{ marginBottom: "10px" }}>
+            <label style={{ display: "block", marginBottom: "5px" }}>
+              Light Color:
+              <input
+                type="color"
+                disabled={!lightOn}
+                value={lightColor}
+                onChange={(e) => handelLightColour(e.target.value)}
+                style={{ marginLeft: "10px", verticalAlign: "middle" }}
+              />
+              {" " + lightColor}
+            </label>
+          </div>
+
+          <br></br>
+          <div style={{ marginBottom: "10px" }}>
+            <label style={{ display: "block", marginBottom: "5px" }}>
+              Light Intensity:
+              <input
+                type="range"
+                min="0"
+                max="10"
+                step="0.1"
+                disabled={!lightOn}
+                value={lightIntensity}
+                onChange={(e) => handelLightIntensity(e.target.value)}
+                style={{ marginLeft: "10px", verticalAlign: "middle" }}
+              />
+              {" " + lightIntensity}
+            </label>
+          </div>
+
+          <div style={{ marginBottom: "10px" }}>
+            <label style={{ display: "block", marginBottom: "5px" }}>
+              colour Light X:
+              <input
+                type="range"
+                min="-20"
+                max="20"
+                step="0.5"
+                value={lightPosition.x}
+                disabled={!lightOn}
+                onChange={(e) => handleLightPositionChange("x", e.target.value)}
+                style={{ marginLeft: "10px", verticalAlign: "middle" }}
+              />
+              {" " + lightPosition.x}
+            </label>
+            <label style={{ display: "block", marginBottom: "5px" }}>
+              colour Light Y:
+              <input
+                type="range"
+                min="-10"
+                max="20"
+                step="0.5"
+                disabled={!lightOn}
+                value={lightPosition.y}
+                onChange={(e) => handleLightPositionChange("y", e.target.value)}
+                style={{ marginLeft: "10px", verticalAlign: "middle" }}
+              />
+              {" " + lightPosition.y}
+            </label>
+            <label style={{ display: "block", marginBottom: "5px" }}>
+              colour Light Z:
+              <input
+                type="range"
+                min="-20"
+                max="20"
+                step="0.5"
+                disabled={!lightOn}
+                value={lightPosition.z}
+                onChange={(e) => handleLightPositionChange("z", e.target.value)}
+                style={{ marginLeft: "10px", verticalAlign: "middle" }}
+              />
+              {" " + lightPosition.z}
+            </label>
+          </div>
         </div>
         <div
           ref={mountRef}
           style={{
             width: "100%",
             height: "100%",
-            padding: "10px",
             boxSizing: "border-box",
             border: "1px solid #ccc",
-            borderRadius: "4px",
           }}
         />
       </div>
